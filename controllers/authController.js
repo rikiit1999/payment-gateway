@@ -2,32 +2,47 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// Register a new user
+const predefinedAdmins = [
+    { username: 'admin', password: 'admin' },
+    { username: 'admin1', password: 'admin1' }
+];
+
+// Register a new user/ admin
 exports.register = async (req, res) => {
     const { username, password } = req.body;
 
     try {
-        // Check if the user already exists
+        // Check if the username is already taken
         let user = await User.findOne({ username });
-        if (user) {
-            return res.status(400).json({ msg: 'User already exists' });
-        }
+        if (user) return res.status(400).json({ msg: 'Username already taken' });
 
-        // Create and save a new user
+        // Check if the provided credentials match predefined admin credentials
+        const isAdminCredential = predefinedAdmins.some(admin => 
+            admin.username === username && admin.password === password
+        );
+
+        // Hash the password before saving it to the database
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Create the user object with isAdmin set based on the credentials
         user = new User({
             username,
-            password: await bcrypt.hash(password, 10), // Hash the password before saving
+            password: hashedPassword,
+            isAdmin: isAdminCredential
         });
 
         await user.save();
 
-        // Create and return a JWT token
-        const payload = { id: user._id };
+        const payload = {
+            user: { id: user.id }
+        };
+
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
 
         res.json({ token });
     } catch (err) {
-        console.error(err.message);
+        console.error(err);
         res.status(500).send('Server error');
     }
 };

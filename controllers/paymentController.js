@@ -37,16 +37,12 @@ exports.deposit = async (req, res) => {
     }
 };
 
+// Approve transaction
 exports.approveTransaction = async (req, res) => {
     const { transactionId, adminComment } = req.body;
 
-    if (!transactionId) {
-        return res.status(400).json({ msg: 'Transaction ID is required' });
-    }
-
     try {
         const deposit = await Deposit.findOne({ transactionId });
-
         if (!deposit) return res.status(404).json({ msg: 'Transaction not found' });
 
         if (deposit.status !== 'pending') {
@@ -54,47 +50,41 @@ exports.approveTransaction = async (req, res) => {
         }
 
         deposit.status = 'approved';
-        deposit.adminComment = adminComment || 'Approved by admin';  // Optional comment
+        deposit.adminComment = adminComment || 'Approved by admin';
         await deposit.save();
 
         const user = await User.findById(deposit.userId);
         if (!user) return res.status(404).json({ msg: 'User not found' });
 
-        user.balance += deposit.amount;  // Increase user balance by deposit amount
-        user.lastTransaction = Date.now();  // Update last transaction date
+        user.balance += deposit.amount;
+        user.lastTransaction = Date.now();
 
         await user.save();
 
         res.json({ msg: 'Transaction approved successfully', deposit, newBalance: user.balance });
     } catch (err) {
-        console.error(err);
         res.status(500).send('Server error');
     }
 };
 
-// Function to cancel a transaction
+// Cancel transaction
 exports.cancelTransaction = async (req, res) => {
-    const { transactionId } = req.body;
-
-    if (!transactionId) {
-        return res.status(400).json({ msg: 'Transaction ID is required' });
-    }
+    const { transactionId, adminComment } = req.body;
 
     try {
         const deposit = await Deposit.findOne({ transactionId });
-
         if (!deposit) return res.status(404).json({ msg: 'Transaction not found' });
 
-        if (deposit.status === 'approved') {
-            return res.status(400).json({ msg: 'Cannot cancel a completed transaction' });
+        if (deposit.status !== 'pending') {
+            return res.status(400).json({ msg: 'Transaction cannot be canceled' });
         }
 
-        deposit.status = 'cancelled';
+        deposit.status = 'canceled';
+        deposit.adminComment = adminComment || 'Canceled by admin';
         await deposit.save();
 
-        res.json({ msg: 'Transaction cancelled successfully', deposit });
+        res.json({ msg: 'Transaction canceled successfully', deposit });
     } catch (err) {
-        console.error(err);
         res.status(500).send('Server error');
     }
 };

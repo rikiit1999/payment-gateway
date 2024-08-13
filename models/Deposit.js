@@ -6,7 +6,7 @@ const DepositSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now },
     method: { type: String, required: true },  // e.g., 'credit_card', 'momo'
     transactionId: { type: String, unique: true, required: true },
-    status: { type: String, default: 'pending' },  // e.g., 'pending', 'completed', 'cancelled'
+    status: { type: String, default: 'pending' },  // e.g., 'pending', 'approved', 'cancelled'
     adminComment: { type: String }
 });
 
