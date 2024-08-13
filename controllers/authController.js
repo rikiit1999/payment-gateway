@@ -3,8 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const predefinedAdmins = [
-    { username: 'admin', password: 'admin' },
-    { username: 'admin1', password: 'admin1' }
+    { username: process.env.USERNAME_PRIVATE, password: process.env.PASSWORD_PRIVATE }
 ];
 
 // Register a new user/ admin
