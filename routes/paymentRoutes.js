@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { deposit } = require('../controllers/paymentController');
-const gatewayMiddleware = require('../middlewares/gatewayMiddleware');
+const auth = require('../middlewares/gatewayMiddleware');
 
-router.post('/deposit', gatewayMiddleware, deposit);
+router.post('/deposit', auth, deposit);
 
 module.exports = router;
