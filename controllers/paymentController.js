@@ -6,42 +6,38 @@ const crypto = require('crypto');
 exports.deposit = async (req, res) => {
     const { amount, description } = req.body;
     const userId = req.user.id;
-    const adminId = '66bb30c78d2fdcba3b3e308f'; // Replace with actual admin ID or logic to get admin ID
-
+    
     try {
-        // Generate a unique transaction ID
         const transactionId = crypto.randomBytes(16).toString('hex');
 
-        // Create a deposit record
         const deposit = new Deposit({
             userId,
             amount,
-            timestamp: Date.now(),
             transactionId,
-            description
-            //,method
+            description,
+            status: 'pending'
         });
 
         await deposit.save();
 
-        // Log transaction in history for admin
-        const transactionHistory = new TransactionHistory({
-            transactionId,
-            amount,
-            description,
-            adminId
-        });
-
-        await transactionHistory.save();
-
-        // Increase admin's balance (assumed admin has a user account)
-        const admin = await User.findById(adminId);
+        // Immediately update admin's balance
+        const admin = await User.findOne({ isAdmin: true }); // Assuming there's a way to identify admin
         if (admin) {
             admin.balance += amount;
             await admin.save();
         }
 
-        res.json({ msg: 'Deposit recorded and admin balance updated', transactionId });
+        // Save the transaction history for admin
+        const transactionHistory = new TransactionHistory({
+            transactionId,
+            amount,
+            description,
+            adminId: admin ? admin._id : null // You might need to handle this based on your setup
+        });
+
+        await transactionHistory.save();
+
+        res.json({ msg: 'Deposit recorded and pending approval', transactionId });
     } catch (err) {
         console.error(err);
         res.status(500).json({ msg: 'Server error' });
@@ -49,23 +45,27 @@ exports.deposit = async (req, res) => {
 };
 
 exports.approveTransaction = async (req, res) => {
-    const { transactionId } = req.body;
+    const { transactionId, adminComment } = req.body;
 
     try {
         const deposit = await Deposit.findOne({ transactionId });
-        if (!deposit) return res.status(404).json({ msg: 'Deposit not found' });
 
-        const transactionHistory = await TransactionHistory.findOne({ transactionId, adminId: req.user.id });
-        if (!transactionHistory) return res.status(404).json({ msg: 'Transaction history not found' });
-
-        // Update user's balance
-        const user = await User.findById(deposit.userId);
-        if (user) {
-            user.balance += deposit.amount;
-            await user.save();
+        if (!deposit || deposit.status !== 'pending') {
+            return res.status(404).json({ msg: 'Transaction not found or already processed' });
         }
 
-        res.json({ msg: 'Deposit approved' });
+        deposit.status = 'approved';
+        deposit.adminComment = adminComment;
+        await deposit.save();
+
+        // Update the user's balance
+        const user = await User.findById(deposit.userId);
+        if (!user) return res.status(404).json({ msg: 'User not found' });
+
+        user.balance += deposit.amount;
+        await user.save();
+
+        res.json({ msg: 'Transaction approved and user balance updated' });
     } catch (err) {
         console.error(err);
         res.status(500).json({ msg: 'Server error' });
@@ -73,18 +73,20 @@ exports.approveTransaction = async (req, res) => {
 };
 
 exports.cancelTransaction = async (req, res) => {
-    const { transactionId } = req.body;
+    const { transactionId, adminComment } = req.body;
 
     try {
         const deposit = await Deposit.findOne({ transactionId });
-        if (!deposit) return res.status(404).json({ msg: 'Deposit not found' });
 
-        const transactionHistory = await TransactionHistory.findOne({ transactionId, adminId: req.user.id });
-        if (!transactionHistory) return res.status(404).json({ msg: 'Transaction history not found' });
+        if (!deposit || deposit.status !== 'pending') {
+            return res.status(404).json({ msg: 'Transaction not found or already processed' });
+        }
 
-        // Optionally: Handle reversal of deposit or notify about the cancellation
+        deposit.status = 'cancelled';
+        deposit.adminComment = adminComment;
+        await deposit.save();
 
-        res.json({ msg: 'Deposit canceled' });
+        res.json({ msg: 'Transaction cancelled' });
     } catch (err) {
         console.error(err);
         res.status(500).json({ msg: 'Server error' });
